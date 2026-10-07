@@ -1,0 +1,14 @@
+{
+  "name": "device-probe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open it on any device, TV browsers included, to see everything the browser exposes about it; every visit lands in a shared device table.",
+  "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.8.1",
+    "qrcode": "^1.5.4"
+  }
+}

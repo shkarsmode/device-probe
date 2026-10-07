@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>device-probe: all devices</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/css/probe.css">
+</head>
+<body>
+    <div class="bar"><b>device-probe</b> <span class="k">|</span> all devices <span class="k">|</span> <a href="/">probe this device</a> <span class="k">|</span> <a href="/api/reports">raw JSON</a></div>
+
+    <pre id="stats" class="panel">loading...</pre>
+    <div class="panel filters">
+        <span class="k">CLASS</span> <span id="classes"></span>
+        <div class="row"><span class="k">SEARCH</span> <input id="q" type="text" size="32" placeholder="tizen, webos, SM-, chrome 120 ..."> <button id="csvBtn">export CSV</button></div>
+    </div>
+
+    <div id="table"></div>
+
+    <script src="/js/core.js"></script>
+    <script src="/js/view.js"></script>
+    <script>
+        (function () {
+            'use strict';
+            var DP = window.DP;
+            var V = DP.view;
+            var items = [];
+            var cls = 'all';
+            var COLS = [
+                ['last seen', function (r) { return (r.lastSeen || '').slice(0, 16).replace('T', ' '); }],
+                ['class', function (r) { return r.digest.cls; }],
+                ['device', function (r) { return r.digest.device; }],
+                ['os', function (r) { return r.digest.os; }],
+                ['year', function (r) { return r.digest.year; }],
+                ['model', function (r) { return r.digest.model; }],
+                ['browser', function (r) { return r.digest.browser; }],
+                ['engine', function (r) { return r.digest.engine; }],
+                ['screen', function (r) { return r.digest.screen; }],
+                ['HDR', function (r) { return r.digest.hdr; }],
+                ['H.264', function (r) { return r.digest.h264; }],
+                ['HEVC', function (r) { return r.digest.hevc; }],
+                ['VP9', function (r) { return r.digest.vp9; }],
+                ['AV1', function (r) { return r.digest.av1; }],
+                ['RTC AV1', function (r) { return r.digest.rtcAv1; }],
+                ['RTC H.265', function (r) { return r.digest.rtcH265; }],
+                ['Widevine', function (r) { return r.digest.widevine; }],
+                ['PlayReady', function (r) { return r.digest.playready; }],
+                ['pad API', function (r) { return r.digest.gamepad; }],
+                ['keys', function (r) { return r.digest.keys; }],
+                ['links', function (r) { return r.digest.bench; }],
+                ['visits', function (r) { return r.visits; }],
+                ['country', function (r) { return r.country; }]
+            ];
+
+            function $(x) {
+                return document.getElementById(x);
+            }
+
+            function visible() {
+                var q = ($('q').value || '').toLowerCase();
+                var out = [];
+                DP.each(items, function (r) {
+                    if (cls !== 'all' && r.digest.cls !== cls) {
+                        return;
+                    }
+                    if (q && JSON.stringify(r).toLowerCase().indexOf(q) < 0) {
+                        return;
+                    }
+                    out.push(r);
+                });
+                return out;
+            }
+
+            function cell(v) {
+                if (v === true || v === false || v === null || v === undefined || v === 'probably' || v === 'maybe') {
+                    return V.badge(v);
+                }
+                return DP.esc(v);
+            }
+
+            function render() {
+                var rows = visible();
+                var h = '<table class="list"><tr>';
+                DP.each(COLS, function (c) {
+                    h += '<th>' + DP.esc(c[0]) + '</th>';
+                });
+                h += '</tr>';
+                DP.each(rows, function (r) {
+                    h += '<tr>';
+                    DP.each(COLS, function (c, i) {
+                        var v = c[1](r);
+                        h += i === 2 ? '<td class="wrap"><a href="/r/' + DP.esc(r.id) + '">' + DP.esc(v || r.id) + '</a></td>' : '<td>' + cell(v) + '</td>';
+                    });
+                    h += '</tr>';
+                });
+                $('table').innerHTML = rows.length ? h + '</table>' : '<p class="na">no devices match</p>';
+                $('stats').innerHTML = '<span class="k">DEVICES</span>     ' + items.length + ' stored  <span class="k">|</span>  ' + rows.length + ' shown';
+            }
+
+            function renderClasses() {
+                var counts = { all: items.length };
+                DP.each(items, function (r) {
+                    var c = r.digest.cls || 'unknown';
+                    counts[c] = (counts[c] || 0) + 1;
+                });
+                var h = '';
+                DP.each(DP.keys(counts), function (c) {
+                    h += '<button data-c="' + DP.esc(c) + '"' + (c === cls ? ' class="on"' : '') + '>' + DP.esc(c) + ' ' + counts[c] + '</button> ';
+                });
+                $('classes').innerHTML = h;
+                var bs = $('classes').getElementsByTagName('button');
+                DP.each(bs, function (b) {
+                    b.onclick = function () {
+                        cls = b.getAttribute('data-c');
+                        renderClasses();
+                        render();
+                    };
+                });
+            }
+
+            function csv() {
+                var lines = [['id'].concat(COLS.map(function (c) { return c[0]; })).join(',')];
+                DP.each(visible(), function (r) {
+                    var vals = [r.id];
+                    DP.each(COLS, function (c) {
+                        var v = c[1](r);
+                        vals.push('"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"');
+                    });
+                    lines.push(vals.join(','));
+                });
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+                a.download = 'device-probe.csv';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            }
+
+            $('q').oninput = render;
+            $('q').onkeyup = render;
+            $('csvBtn').onclick = csv;
+
+            DP.xhr('GET', '/api/reports', null, function (err, data) {
+                if (err || !data) {
+                    $('stats').innerHTML = '<span class="no">' + DP.esc(err ? err.message : 'no data') + '</span>';
+                    return;
+                }
+                items = data.items || [];
+                renderClasses();
+                render();
+            }, 15000);
+        })();
+    </script>
+</body>
+</html>

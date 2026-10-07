@@ -1,0 +1,30 @@
+{
+    "$schema": "https://openapi.vercel.sh/vercel.json",
+    "regions": ["fra1"],
+    "cleanUrls": true,
+    "rewrites": [
+        { "source": "/r/:id", "destination": "/report" }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                {
+                    "key": "Accept-CH",
+                    "value": "Sec-CH-UA, Sec-CH-UA-Arch, Sec-CH-UA-Bitness, Sec-CH-UA-Full-Version, Sec-CH-UA-Full-Version-List, Sec-CH-UA-Mobile, Sec-CH-UA-Model, Sec-CH-UA-Platform, Sec-CH-UA-Platform-Version, Sec-CH-UA-WoW64, Sec-CH-UA-Form-Factors, Sec-CH-Prefers-Color-Scheme, Sec-CH-Prefers-Reduced-Motion, Sec-CH-Prefers-Reduced-Transparency, Sec-CH-DPR, Sec-CH-Viewport-Width, Sec-CH-Viewport-Height, Sec-CH-Device-Memory, Device-Memory, DPR, Viewport-Width, ECT, RTT, Downlink, Save-Data"
+                },
+                { "key": "X-Content-Type-Options", "value": "nosniff" },
+                { "key": "Referrer-Policy", "value": "no-referrer" },
+                { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+            ]
+        },
+        {
+            "source": "/ping.txt",
+            "headers": [{ "key": "Cache-Control", "value": "no-store" }]
+        },
+        {
+            "source": "/js/(.*)",
+            "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+        }
+    ]
+}

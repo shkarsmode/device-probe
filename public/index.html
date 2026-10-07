@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>device-probe</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/css/probe.css">
+</head>
+<body>
+    <div class="bar"><b>device-probe</b> <span id="ver"></span> <span class="k">|</span> <span id="clock"></span> <span class="k">|</span> <a href="/reports">all devices</a></div>
+
+    <pre id="summary" class="summary">probing...</pre>
+    <pre id="client" class="panel"></pre>
+
+    <div id="save" class="panel">
+        <pre id="saveStatus"></pre>
+        <div id="saveQr"></div>
+        <div class="row">
+            <button id="copyBtn">copy JSON</button>
+            <button id="downloadBtn">download JSON</button>
+            <button id="rawBtn">show raw JSON</button>
+        </div>
+    </div>
+
+    <div class="panel">
+        <span class="k">LIVE INPUT</span>  <span class="small">press remote buttons, keys or gamepad buttons: codes are recorded in the report</span>
+        <pre id="pads" class="row"></pre>
+        <div class="row"><button id="backBtn">trap Back key</button> <span class="small">catches the Back button as a history event instead of leaving the page</span></div>
+    </div>
+
+    <div id="bench" class="panel"></div>
+
+    <div id="sections"></div>
+    <div id="raw"></div>
+
+    <pre id="lastKey" class="lastkey"><span class="k">press any key or remote button</span></pre>
+
+    <noscript>JavaScript is off. The server side of the probe still works: <a href="/api/echo">/api/echo</a></noscript>
+
+    <script src="/js/core.js"></script>
+    <script src="/js/detect.js"></script>
+    <script src="/js/probes.js"></script>
+    <script src="/js/view.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html>

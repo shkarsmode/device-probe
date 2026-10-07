@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>device-probe report</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/css/probe.css">
+</head>
+<body>
+    <div class="bar"><b>device-probe</b> <span class="k">|</span> stored report <span class="k">|</span> <a href="/reports">all devices</a> <span class="k">|</span> <a href="/">probe this device</a></div>
+
+    <pre id="meta" class="panel">loading...</pre>
+    <pre id="summary" class="summary"></pre>
+    <pre id="client" class="panel"></pre>
+    <div class="panel"><button id="copyBtn">copy JSON</button> <button id="rawBtn">show raw JSON</button></div>
+
+    <div id="sections"></div>
+    <div id="raw"></div>
+
+    <script src="/js/core.js"></script>
+    <script src="/js/detect.js"></script>
+    <script src="/js/view.js"></script>
+    <script>
+        (function () {
+            'use strict';
+            var DP = window.DP;
+            var V = DP.view;
+            var m = /\/r\/([a-f0-9]+)/.exec(window.location.pathname);
+            var id = m ? m[1] : DP.param('id');
+            var record = null;
+
+            function $(x) {
+                return document.getElementById(x);
+            }
+
+            $('copyBtn').onclick = function () {
+                if (!record) {
+                    return;
+                }
+                var ta = document.createElement('textarea');
+                ta.value = JSON.stringify(record, null, 2);
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    $('copyBtn').innerHTML = 'copied';
+                } catch (e) {
+                    $('copyBtn').innerHTML = 'copy failed';
+                }
+                document.body.removeChild(ta);
+            };
+            $('rawBtn').onclick = function () {
+                if (record) {
+                    $('raw').innerHTML = '<h2><span class="n">--</span> raw record</h2><pre class="raw">' + DP.esc(JSON.stringify(record, null, 2)) + '</pre>';
+                }
+            };
+
+            if (!id) {
+                $('meta').innerHTML = '<span class="no">no report id in the URL</span>';
+                return;
+            }
+            DP.xhr('GET', '/api/report?id=' + encodeURIComponent(id), null, function (err, rec) {
+                if (err || !rec || !rec.report) {
+                    $('meta').innerHTML = '<span class="no">report #' + DP.esc(id) + ': ' + DP.esc(err ? err.message : 'empty') + '</span>';
+                    return;
+                }
+                record = rec;
+                var R = rec.report;
+                document.title = 'device-probe #' + id + ' ' + ((R.detected && R.detected.name) || '');
+                $('meta').innerHTML = '<span class="k">REPORT</span>      <span class="hl">#' + DP.esc(id) + '</span>' +
+                    '  <span class="k">first seen</span> ' + DP.esc((rec.firstSeen || '').slice(0, 16).replace('T', ' ')) +
+                    '  <span class="k">last seen</span> ' + DP.esc((rec.lastSeen || '').slice(0, 16).replace('T', ' ')) +
+                    '  <span class="k">visits</span> ' + DP.esc(rec.visits) +
+                    '  <span class="k">country</span> ' + DP.esc(rec.country || 'n/a') +
+                    '  <span class="k">probe</span> v' + DP.esc(R.probeVersion || '?');
+                $('summary').innerHTML = V.summary(R, false);
+                $('client').innerHTML = V.client(R.client || DP.clientFor(R.detected || {}));
+                V.renderSections($('sections'), R);
+            }, 15000);
+        })();
+    </script>
+</body>
+</html>
