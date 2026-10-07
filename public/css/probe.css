@@ -200,10 +200,20 @@ button:hover {
     color: #58a6ff;
 }
 
-.list td {
-    white-space: nowrap;
+/* the device table is wide: keep cells on one line and scroll sideways instead */
+.scroll {
+    overflow-x: auto;
 }
 
-.list td.wrap {
-    white-space: normal;
+.list th,
+.list td {
+    white-space: nowrap;
+    word-break: normal;
+}
+
+/* key codes only matter with a keyboard or a remote; on phones the box just covers content */
+@media (pointer: coarse) {
+    html:not(.tv) .lastkey {
+        display: none;
+    }
 }

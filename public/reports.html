@@ -17,7 +17,7 @@
         <div class="row"><span class="k">SEARCH</span> <input id="q" type="text" size="32" placeholder="tizen, webos, SM-, chrome 120 ..."> <button id="csvBtn">export CSV</button></div>
     </div>
 
-    <div id="table"></div>
+    <div id="table" class="scroll"></div>
 
     <script src="/js/core.js"></script>
     <script src="/js/view.js"></script>
@@ -91,7 +91,7 @@
                     h += '<tr>';
                     DP.each(COLS, function (c, i) {
                         var v = c[1](r);
-                        h += i === 2 ? '<td class="wrap"><a href="/r/' + DP.esc(r.id) + '">' + DP.esc(v || r.id) + '</a></td>' : '<td>' + cell(v) + '</td>';
+                        h += i === 2 ? '<td><a href="/r/' + DP.esc(r.id) + '">' + DP.esc(v || r.id) + '</a></td>' : '<td>' + cell(v) + '</td>';
                     });
                     h += '</tr>';
                 });
