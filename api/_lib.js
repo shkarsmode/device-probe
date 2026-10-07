@@ -9,8 +9,9 @@ const MAX_BODY = 400 * 1024;
 const MAX_RECORDS = 5000;
 const INDEX = 'index.json';
 
-/* headers that are secrets, routing internals or the visitor's address */
-const DROP_HEADER = /^(cookie|authorization|forwarded|x-real-ip|x-forwarded-for|x-vercel-forwarded-for|x-vercel-proxy-signature.*|x-vercel-oidc-token|x-vercel-sc-.*|x-vercel-internal-.*|x-middleware-.*|x-vercel-deployment-url|x-vercel-proxied-for|x-vercel-ip-.*)$/i;
+/* headers that are secrets, routing internals, the visitor's address, or our own response
+   headers that Vercel copies onto the function request (accept-ch, x-robots-tag, ...) */
+const DROP_HEADER = /^(cookie|authorization|forwarded|x-real-ip|x-forwarded-for|x-vercel-forwarded-for|x-vercel-proxy-signature.*|x-vercel-oidc-token|x-vercel-sc-.*|x-vercel-internal-.*|x-middleware-.*|x-vercel-deployment-url|x-vercel-proxied-for|x-vercel-ip-.*|x-invocation-id|x-vercel-enable-rewrite-caching|accept-ch|referrer-policy|x-content-type-options|x-robots-tag)$/i;
 
 function headersOf(req) {
     const out = {};
