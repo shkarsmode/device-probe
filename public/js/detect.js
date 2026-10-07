@@ -41,6 +41,15 @@
 
     var ANDROID_TV_HINT = /\bTV\b|Android ?TV|Google ?TV|BRAVIA|SHIELD|MIBOX|Mi ?Box|MiTV|Chromecast|Nexus Player|\bDTV\b|\bSTB\b|\bBOX\b|Smart ?TV|TPM\d|\bATV\b/i;
 
+    /* models that end in TV: "BeyondTV" (TCL), "AndroidTV"; case-sensitive on purpose */
+    var TV_MODEL = /[a-z0-9]TV\b/;
+
+    /* Android WebViews name their app in X-Requested-With; TV makers' browsers give the vendor away */
+    var VENDOR_BY_APP = {
+        tcl: 'TCL', hisense: 'Hisense', xiaomi: 'Xiaomi', sony: 'Sony', tpvision: 'Philips', philips: 'Philips',
+        skyworth: 'Skyworth', haier: 'Haier', changhong: 'Changhong', konka: 'Konka', sharp: 'Sharp', toshiba: 'Toshiba'
+    };
+
     var SMART_TV_TOKENS = [
         [/NetCast/i, 'LG', 'LG NetCast TV'],
         [/NETTV|PhilipsTV|Philips/i, 'Philips', 'Philips Smart TV'],
@@ -77,6 +86,25 @@
 
     function major(v) {
         return v ? parseInt(v, 10) : NaN;
+    }
+
+    /*
+     * Since iOS 26 the OS in the user agent is frozen at 18.x. Safari ships with the system, so its
+     * Version/ is the real release; other iOS browsers carry no Version/ and leave it unknown.
+     */
+    function appleVersion(ua, d) {
+        var os = dots(match(/OS ([\d_]+) like Mac/, ua));
+        var safari = match(/Version\/([\d.]+)/, ua);
+        if (safari && (major(safari) >= 26 || !os)) {
+            if (os && major(safari) >= 26) {
+                d.notes.push('the user agent says ' + os + ' (frozen since iOS 26); Safari ' + safari + ' gives the real release');
+            }
+            return safari;
+        }
+        if (os && major(os) >= 18 && !safari) {
+            d.notes.push('the user agent says ' + os + ', frozen since iOS 26: the real release may be newer');
+        }
+        return os;
     }
 
     /* HbbTV/1.5.1 (+DRM; Samsung; SmartTV2020; T-KSU2EDEUC-1460.2; ; ) - vendor, model and firmware in one place */
@@ -201,7 +229,7 @@
 
     /*
      * input: { ua, platform, maxTouchPoints, screenW, screenH, uaData (low + high entropy merged),
-     *          webglRenderer }
+     *          webglRenderer, apis (report.platformApis), requestedWith (X-Requested-With) }
      */
     DP.detect = function (input) {
         var ua = input.ua || '';
@@ -210,6 +238,35 @@
         var touch = input.maxTouchPoints || 0;
         var sw = Math.max(input.screenW || 0, input.screenH || 0);
         var sh = Math.min(input.screenW || 0, input.screenH || 0);
+        var plat = input.platform || '';
+        var apis = input.apis || {};
+        var globals = apis.globals || {};
+        var extra = apis.nonStandardGlobals || [];
+
+        function hasGlobal(re) {
+            var k;
+            for (k in globals) {
+                if (Object.prototype.hasOwnProperty.call(globals, k) && re.test(k)) {
+                    return true;
+                }
+            }
+            for (k = 0; k < extra.length; k++) {
+                if (re.test(extra[k])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /*
+         * Some TV browsers pose as desktop Chrome: LG's webOS browser (Naver Whale) sends a Windows
+         * user agent, Hisense VIDAA a bare Linux one. navigator.platform and the vendor globals
+         * still tell the truth.
+         */
+        var spoofed = !!plat && ((/Windows NT/.test(ua) && !/^Win/i.test(plat)) || (/Macintosh/.test(ua) && !/^Mac/i.test(plat)));
+        var lgApi = hasGlobal(/^(webOS|webOSSystem|webOSDev|PalmSystem|PalmServiceBridge)$|^onwebOS|^lgcrw_/);
+        var hisenseApi = !!apis.hisense || hasGlobal(/^(Hisense|hisense|vidaa|VIDAA)$|^Hisense_/);
+        var tizenApi = hasGlobal(/^(tizen|tizentvwasm)$/);
         var d = {
             family: 'unknown',
             cls: 'unknown',
@@ -239,9 +296,9 @@
             d.name = name;
         }
 
-        if (/Tizen/i.test(ua)) {
+        if (/Tizen/i.test(ua) || tizenApi) {
             v = match(/Tizen ?([\d.]+)/i, ua);
-            if (/SMART-TV|SmartTV|Smart TV|TV Safari/i.test(ua)) {
+            if (/SMART-TV|SmartTV|Smart TV|TV Safari/i.test(ua) || hasGlobal(/^tizentvwasm$/) || globals.webapis) {
                 set('tizen', 'tv', 'Samsung', 'Samsung Smart TV (Tizen)');
                 d.year = v ? TIZEN_YEAR[v] || null : null;
             } else {
@@ -249,9 +306,16 @@
             }
             d.os = 'Tizen';
             d.osVersion = v;
-        } else if (/Web0S|webOS|WebOS/.test(ua) && !/hpwOS/.test(ua)) {
+        } else if ((/Web0S|webOS|WebOS/.test(ua) && !/hpwOS/.test(ua)) || lgApi || (spoofed && /Whale\//.test(ua))) {
             set('webos', 'tv', 'LG', 'LG Smart TV (webOS)');
             d.os = 'webOS';
+            if (!/Web0S|webOS|WebOS/.test(ua)) {
+                d.notes.push(spoofed ? 'the browser poses as ' + (/Windows/.test(ua) ? 'Windows' : 'macOS') + ' Chrome; navigator.platform "' + plat + '"' +
+                    (lgApi ? ' and the LG globals (onwebOS*, lgcrw_*)' : ' and the Whale engine') + ' give the TV away' : 'recognised by the LG globals, not by the user agent');
+                if (!lgApi) {
+                    d.confidence = 'medium';
+                }
+            }
             v = major(match(/Chrome\/([\d.]+)/, ua));
             if (!isNaN(v)) {
                 for (var i = 0; i < WEBOS_BY_CHROMIUM.length; i++) {
@@ -266,10 +330,25 @@
                 d.osVersion = '1.x-2.x';
                 d.year = '2014-2015';
             }
-        } else if (/VIDAA/i.test(ua) || (/Hisense|HiSmartTV/i.test(ua) && !/Android/i.test(ua))) {
+        } else if (/VIDAA/i.test(ua) || ((/Hisense|HiSmartTV/i.test(ua) || hisenseApi) && !/Android/i.test(ua))) {
             set('vidaa', 'tv', 'Hisense', 'Hisense Smart TV (VIDAA)');
             d.os = 'VIDAA';
             d.osVersion = match(/VIDAA[\/ ]?([\d.]+)/i, ua);
+            /* the Hisense_* API knows the model and the VIDAA release ("U07.60") */
+            var hs = apis.hisense || {};
+            var info = hs.Hisense_GetDeviceInfo && typeof hs.Hisense_GetDeviceInfo === 'object' ? hs.Hisense_GetDeviceInfo : {};
+            v = typeof hs.Hisense_GetOSVersion === 'string' ? hs.Hisense_GetOSVersion : info.os_version;
+            if (v && !d.osVersion) {
+                d.osVersion = String(v).replace(/^VIDAA\s*/i, '');
+            }
+            v = info.model_name || (typeof hs.Hisense_GetModelName === 'string' ? hs.Hisense_GetModelName : null);
+            if (v) {
+                d.model = v;
+                d.modelSource = 'Hisense API';
+            }
+            if (!/VIDAA|Hisense|HiSmartTV/i.test(ua)) {
+                d.notes.push('the browser poses as ' + (/X11|Linux/.test(ua) ? 'Linux desktop' : 'desktop') + ' Chrome; the Hisense_* API gives the TV away');
+            }
         } else if (/\bAFT[A-Z0-9]{1,8}\b/.test(ua)) {
             v = match(/\b(AFT[A-Z0-9]{1,8})\b/, ua);
             set('firetv', 'tv', 'Amazon', FIRE_TV[v] || 'Fire TV device (' + v + ')');
@@ -285,13 +364,16 @@
             set('chromecast', 'tv', 'Google', 'Chromecast (Cast receiver)');
             d.os = 'Cast';
             d.osVersion = match(/CrKey\/([\d.]+)/, ua);
-        } else if (/Android/i.test(ua) && (ANDROID_TV_HINT.test(ua) || (!/Mobile/.test(ua) && touch === 0 && sw >= 960 && sw > sh))) {
+        } else if (/Android/i.test(ua) && (ANDROID_TV_HINT.test(ua) || TV_MODEL.test(ua) || TV_MODEL.test(hi.model || '') || (input.maxTouchPoints === 0 && sw >= 960 && sw > sh))) {
             set('androidtv', 'tv', null, 'Android TV / Google TV');
             d.os = 'Android TV';
             d.osVersion = match(/Android ([\d.]+)/, ua);
-            if (!ANDROID_TV_HINT.test(ua)) {
+            if (!ANDROID_TV_HINT.test(ua) && !TV_MODEL.test(ua) && !TV_MODEL.test(hi.model || '')) {
                 d.confidence = 'medium';
                 d.notes.push('Android without touch on a landscape screen: TV or set-top box');
+            }
+            if (/Mobile/.test(ua) || hi.mobile) {
+                d.notes.push('the TV browser calls itself "Mobile" (user agent / client hints)' + (input.maxTouchPoints === 0 ? ', yet it has no touch points, which every phone has' : ''));
             }
         } else if (d.hbbtv) {
             set('hbbtv', 'tv', d.hbbtv.vendor, (d.hbbtv.vendor || 'HbbTV') + ' TV (HbbTV ' + d.hbbtv.version + ')');
@@ -312,11 +394,11 @@
         } else if (/iPhone|iPod/.test(ua)) {
             set('ios', 'mobile', 'Apple', 'iPhone');
             d.os = 'iOS';
-            d.osVersion = dots(match(/OS ([\d_]+) like Mac/, ua));
+            d.osVersion = appleVersion(ua, d);
         } else if (/iPad/.test(ua) || (input.platform === 'MacIntel' && touch > 1)) {
             set('ios', 'tablet', 'Apple', 'iPad');
             d.os = 'iPadOS';
-            d.osVersion = dots(match(/OS ([\d_]+) like Mac/, ua)) || dots(match(/Version\/([\d.]+)/, ua));
+            d.osVersion = appleVersion(ua, d);
             if (!/iPad/.test(ua)) {
                 d.notes.push('iPad in desktop mode: reports itself as a Mac with touch');
             }
@@ -336,6 +418,8 @@
             set('chromeos', 'desktop', null, 'Chromebook');
             d.os = 'ChromeOS';
             d.osVersion = match(/CrOS \S+ ([\d.]+)/, ua);
+        } else if (spoofed) {
+            d.notes.push('the user agent claims ' + (/Windows/.test(ua) ? 'Windows' : 'macOS') + ', but navigator.platform is "' + plat + '": a TV or a box behind a desktop user agent');
         } else if (/Windows/.test(ua)) {
             set('windows', 'desktop', null, 'Windows PC');
             d.os = 'Windows';
@@ -413,6 +497,17 @@
                 d.name = 'Mac (Intel)';
             }
         }
+        /* an Android WebView names its app: com.tcl.browser means a TCL TV */
+        v = match(/^com\.([a-z]+)\./i, input.requestedWith || '');
+        if (v) {
+            d.notes.push('opened inside the app ' + input.requestedWith);
+            if (VENDOR_BY_APP[v.toLowerCase()] && !d.vendor) {
+                d.vendor = VENDOR_BY_APP[v.toLowerCase()];
+                if (d.family === 'androidtv') {
+                    d.name = d.vendor + ' Android TV';
+                }
+            }
+        }
         if (d.cls === 'tv' && !d.model) {
             d.notes.push('the TV browser does not expose the model; only installed TV apps can read it');
         }
@@ -442,8 +537,7 @@
         var C = {
             windows: { name: 'Boosteroid for Windows', links: [
                 { label: 'Win 10+ 64-bit', url: 'https://boosteroid.com/win/installer/boosteroid-install-x64.zip' },
-                { label: 'Portable', url: 'https://boosteroid.com/win/installer/boosteroid-install-portable.zip' },
-                { label: 'Portable (legacy)', url: 'https://boosteroid.com/win/installer/legacy/boosteroid-install-portable-legacy.zip' }
+                { label: 'Portable', url: 'https://boosteroid.com/win/installer/boosteroid-install-portable.zip' }
             ] },
             macArm: { name: 'Boosteroid for Mac (Apple Silicon)', links: [
                 { label: 'M1+', url: 'https://boosteroid.com/macos_ARM/installer/boosteroid-install-arm64.dmg' }

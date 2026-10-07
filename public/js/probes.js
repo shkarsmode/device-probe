@@ -584,14 +584,23 @@
 
         /* Hisense VIDAA exposes Hisense_Get* functions; read the harmless ones */
         var hisense = {};
+        var ID_FIELD = /^(ip|ip_?addr(ess)?|mac(_?addr(ess)?)?|uuid|device_?id|serial(_?(no|number))?|ads?_?id)$/i;
         DP.each(names, function (n) {
             if (/^Hisense_Get/.test(n) && typeof w[n] === 'function') {
-                if (/ID|Mac|Serial|Uuid|Token|Ip/i.test(n.replace('Hisense_Get', ''))) {
+                if (/ID|Mac|Serial|Uuid|Token|Ip|Network/i.test(n.replace('Hisense_Get', ''))) {
                     hisense[n] = '(skipped: identifier)';
                 } else if (w[n].length === 0) {
                     hisense[n] = DP.safe(n, function () {
                         return w[n]();
                     }, '(threw)');
+                    /* some getters bundle an address or an id into a bigger object */
+                    if (hisense[n] && typeof hisense[n] === 'object') {
+                        DP.each(DP.keys(hisense[n]), function (k) {
+                            if (ID_FIELD.test(k)) {
+                                hisense[n][k] = '(skipped: identifier)';
+                            }
+                        });
+                    }
                 }
             }
         });

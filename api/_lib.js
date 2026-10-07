@@ -100,7 +100,26 @@ function sanitize(r) {
     if (r.identity) {
         delete r.identity.referrer;
     }
+    /* vendor TV APIs bundle the LAN address or device ids into bigger objects (Hisense_GetNetworkInfo) */
+    if (r.platformApis && r.platformApis.hisense) {
+        scrubIds(r.platformApis.hisense, 0);
+    }
     return r;
+}
+
+const ID_FIELD = /^(ip|ip_?addr(ess)?|mac(_?addr(ess)?)?|uuid|device_?id|serial(_?(no|number))?|ads?_?id)$/i;
+
+function scrubIds(o, depth) {
+    if (!o || typeof o !== 'object' || depth > 3) {
+        return;
+    }
+    Object.keys(o).forEach((k) => {
+        if (ID_FIELD.test(k) || /NetworkInfo$/.test(k)) {
+            o[k] = '(skipped: identifier)';
+        } else {
+            scrubIds(o[k], depth + 1);
+        }
+    });
 }
 
 function mergeList(a, b, keyFn, merge) {

@@ -41,7 +41,9 @@
             screenW: s.width,
             screenH: s.height,
             uaData: R.uaData,
-            webglRenderer: R.graphics.unmaskedRenderer || R.graphics.renderer
+            webglRenderer: R.graphics.unmaskedRenderer || R.graphics.renderer,
+            apis: R.platformApis,
+            requestedWith: R.server && R.server.headers ? R.server.headers['x-requested-with'] : null
         });
         var h = R.server && R.server.headers;
         if (h && !R.detected.model) {
